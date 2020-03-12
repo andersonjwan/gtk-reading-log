@@ -1,6 +1,8 @@
 #ifndef MAIN_H
 #define MAIN_H
 
+#include <stdbool.h>
+
 struct Book {
   gchar *title;
   gchar *author;
@@ -18,5 +20,8 @@ struct WidgetList {
 
   struct WidgetList *next;
 };
+
+/* forward declaration(s) */
+static void save_books(GtkButton *, gpointer);
 
 #endif

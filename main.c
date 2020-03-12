@@ -1,5 +1,6 @@
 #include <gtk/gtk.h>
 #include <string.h>
+#include <stdio.h>
 #include "main.h"
 
 struct Book *start = NULL;
@@ -75,15 +76,17 @@ confirm_book(GtkButton *add,
   strcpy(new_book->total_pages, pages);
 
   // default(s)
-  new_book->start_page = NULL;
-  new_book->end_page = NULL;
+  new_book->start_page = "0";
+  new_book->end_page = "0";
   new_book->next = NULL;
 
   // add to book list
   if(start == NULL) {
+    printf("Set Head\n");
     start = new_book;
   }
   else {
+    printf("Appended Tail\n");
     struct Book *curr_book = start;
 
     while(curr_book->next != NULL) {
@@ -232,6 +235,7 @@ activate(GtkApplication *app,
 
   // books tab widget(s)
   GtkWidget *add_book_button;
+  GtkWidget *save_books_button;
   GtkWidget *book_title;
   GtkWidget *book_author;
   GtkWidget *book_edition;
@@ -259,6 +263,7 @@ activate(GtkApplication *app,
   book_entries_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
 
   add_book_button = gtk_button_new_with_label("Add Book");
+  save_books_button = gtk_button_new_with_label("Save Books");
 
   book_title = gtk_label_new("Title:");
   gtk_label_set_xalign(GTK_LABEL(book_title), 0);
@@ -312,6 +317,7 @@ activate(GtkApplication *app,
 
   gtk_box_pack_start(GTK_BOX(stack_books_box), GTK_WIDGET(book_info_box), FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(stack_books_box), GTK_WIDGET(add_book_button), FALSE, FALSE, 0);
+  gtk_box_pack_end(GTK_BOX(stack_books_box), GTK_WIDGET(save_books_button), FALSE, FALSE, 0);
 
   // stack switch widget(s)
   stack_switch = gtk_stack_switcher_new();
@@ -319,6 +325,9 @@ activate(GtkApplication *app,
 
   // create combo box(s)
   book_list = gtk_combo_box_text_new_with_entry();
+
+  // combo box property(s)
+  //   gtk_combo_box_set_popup_fixed_width(GTK_COMBO_BOX(book_list), TRUE);
 
   // header widget(s)
   header = gtk_header_bar_new();
@@ -347,6 +356,8 @@ activate(GtkApplication *app,
   // connect widget(s) to function(s)
   g_signal_connect(GTK_BUTTON(add_book_button), "clicked",
                    G_CALLBACK(add_book), book_list);
+  g_signal_connect(GTK_BUTTON(save_books_button), "clicked",
+                   G_CALLBACK(save_books), start);
   g_signal_connect(GTK_COMBO_BOX_TEXT(book_list), "changed",
                    G_CALLBACK(select_book), book_info_entry);
 
@@ -365,4 +376,53 @@ int main(int argc, char **argv)
   g_object_unref(app);
 
   return status;
+}
+
+static void
+save_books(GtkButton *save_button,
+           gpointer   data)
+{
+  struct Book *curr_book = start;
+
+  if(curr_book != NULL) {
+    // create file
+    FILE *output_file;
+
+    // open file
+    if((output_file = fopen("book-list.txt", "w")) == NULL) {
+      fprintf(stderr, "Unable to open '%s'\n", "book-list.txt");
+      exit(1);
+    }
+
+    // write data to file
+    while(curr_book != NULL) {
+      // write book information
+      fprintf(output_file, "%s", curr_book->title);
+      fprintf(output_file, " #\n"); // delimeter
+
+      fprintf(output_file, "%s", curr_book->author);
+      fprintf(output_file, " #\n");
+
+      fprintf(output_file, "%s", curr_book->edition);
+      fprintf(output_file, " #\n");
+
+      fprintf(output_file, "%s", curr_book->total_pages);
+      fprintf(output_file, " #\n");
+
+      fprintf(output_file, "%s", curr_book->start_page);
+      fprintf(output_file, " #\n");
+
+      fprintf(output_file, "%s", curr_book->end_page);
+      fprintf(output_file, " #\n");
+
+      // end of book information
+      fprintf(output_file, "##\n");
+
+      // next book
+      curr_book = curr_book->next;
+    }
+
+    // close file
+    fclose(output_file);
+  }
 }
