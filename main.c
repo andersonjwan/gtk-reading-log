@@ -1,18 +1,112 @@
 #include <gtk/gtk.h>
+#include <string.h>
+#include "main.h"
+
+struct Book *start = NULL;
+
+struct Book *
+get_book(const gchar *book_name)
+{
+  struct Book *curr_book = start;
+
+  while(curr_book != NULL) {
+    if(strcmp(curr_book->title, book_name) == 0) {
+      return curr_book;
+    }
+
+    curr_book = curr_book->next;
+  }
+
+  return NULL;
+}
 
 static void
-close_window(GtkButton *add,
+select_book(GtkComboBoxText *combo,
+            gpointer         user_data)
+{
+  GtkComboBoxText *curr_box = combo;
+  struct WidgetList *data = (struct WidgetList *) user_data;
+
+  GtkEntry *title_entry = GTK_ENTRY(data->widget);
+  GtkEntry *author_entry = GTK_ENTRY(data->next->widget);
+  GtkEntry *edition_entry = GTK_ENTRY(data->next->next->widget);
+  GtkEntry *pages_entry = GTK_ENTRY(data->next->next->next->widget);
+
+  const gchar *selection = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(curr_box));
+
+  struct Book *book = get_book(selection);
+
+  gtk_entry_set_text(GTK_ENTRY(title_entry), book->title);
+  gtk_entry_set_text(GTK_ENTRY(author_entry), book->author);
+  gtk_entry_set_text(GTK_ENTRY(edition_entry), book->edition);
+  gtk_entry_set_text(GTK_ENTRY(pages_entry), book->total_pages);
+}
+
+static void
+confirm_book(GtkButton *add,
              gpointer   data)
 {
-  GtkWindow *window = GTK_WINDOW(data);
+  struct WidgetList *curr_entry;
+  GtkWindow *window;
+  const char *title, *author, *pages, *edition;
+  GtkComboBoxText *combo;
 
+  // set values
+  curr_entry = data;
+
+  combo = GTK_COMBO_BOX_TEXT(curr_entry->widget);
+  title = gtk_entry_get_text(GTK_ENTRY(curr_entry->next->widget));
+  author = gtk_entry_get_text(GTK_ENTRY(curr_entry->next->next->widget));
+  edition = gtk_entry_get_text(GTK_ENTRY(curr_entry->next->next->next->widget));
+  pages = gtk_entry_get_text(GTK_ENTRY(curr_entry->next->next->next->next->widget));
+  window = GTK_WINDOW(curr_entry->next->next->next->next->next->widget);
+
+  struct Book *new_book = (struct Book *) malloc(sizeof(struct Book));
+
+  new_book->title = (gchar *) malloc((sizeof(gchar) * strlen(title)) + 1);
+  new_book->author = (gchar *) malloc((sizeof(gchar) * strlen(author)) + 1);
+  new_book->edition = (gchar *) malloc((sizeof(gchar) * strlen(edition)) + 1);
+  new_book->total_pages = (gchar *) malloc((sizeof(gchar) * strlen(pages)) + 1);
+
+  // copy data to new book
+  strcpy(new_book->title, title);
+  strcpy(new_book->author, author);
+  strcpy(new_book->edition, edition);
+  strcpy(new_book->total_pages, pages);
+
+  // default(s)
+  new_book->start_page = NULL;
+  new_book->end_page = NULL;
+  new_book->next = NULL;
+
+  // add to book list
+  if(start == NULL) {
+    start = new_book;
+  }
+  else {
+    struct Book *curr_book = start;
+
+    while(curr_book->next != NULL) {
+      curr_book = curr_book->next;
+    }
+
+    curr_book->next = new_book;
+  }
+
+  // update combo box
+  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo), NULL, new_book->title);
+
+  // destroy window
   gtk_widget_destroy(GTK_WIDGET(window));
 }
 
 static void
 add_book(GtkButton *add_book_button,
-         gpointer   user_data)
+         gpointer   data)
 {
+  // parameter widget(s)
+  GtkWidget *combo = data;
+
   // create window
   GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 
@@ -22,11 +116,14 @@ add_book(GtkButton *add_book_button,
   // Label(s)
   GtkWidget *title;
   GtkWidget *author;
+  GtkWidget *edition;
   GtkWidget *pages;
 
   // Entries
+  struct WidgetList *widgets;
   GtkWidget *title_entry;
   GtkWidget *author_entry;
+  GtkWidget *edition_entry;
   GtkWidget *pages_entry;
 
   // Button(s)
@@ -53,13 +150,32 @@ add_book(GtkButton *add_book_button,
   author = gtk_label_new("Book Author:");
   gtk_label_set_xalign(GTK_LABEL(author), 0);
 
+  edition = gtk_label_new("Book Edition:");
+  gtk_label_set_xalign(GTK_LABEL(edition), 0);
+
   pages = gtk_label_new("Page Count:");
   gtk_label_set_xalign(GTK_LABEL(pages), 0);
 
   // create entry widget(s)
+  widgets = (struct WidgetList *) malloc(sizeof(struct WidgetList));
+  widgets->next = (struct WidgetList *) malloc(sizeof(struct WidgetList));
+  widgets->next->next = (struct WidgetList *) malloc(sizeof(struct WidgetList));
+  widgets->next->next->next = (struct WidgetList *) malloc(sizeof(struct WidgetList));
+  widgets->next->next->next->next = (struct WidgetList *) malloc(sizeof(struct WidgetList));
+  widgets->next->next->next->next->next = (struct WidgetList *) malloc(sizeof(struct WidgetList));
+
   title_entry = gtk_entry_new();
   author_entry = gtk_entry_new();
+  edition_entry = gtk_entry_new();
   pages_entry = gtk_entry_new();
+
+  // create widget list
+  widgets->widget = combo;
+  widgets->next->widget = title_entry;
+  widgets->next->next->widget = author_entry;
+  widgets->next->next->next->widget = edition_entry;
+  widgets->next->next->next->next->widget = pages_entry;
+  widgets->next->next->next->next->next->widget = window;
 
   // create box
   box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
@@ -67,10 +183,13 @@ add_book(GtkButton *add_book_button,
   // attach widget(s) to grid
   gtk_grid_attach(GTK_GRID(grid), GTK_WIDGET(title), 0, 0, 1, 1);
   gtk_grid_attach(GTK_GRID(grid), GTK_WIDGET(author), 0, 1, 1, 1);
-  gtk_grid_attach(GTK_GRID(grid), GTK_WIDGET(pages), 0, 2, 1, 1);
+  gtk_grid_attach(GTK_GRID(grid), GTK_WIDGET(edition), 0, 2, 1, 1);
+  gtk_grid_attach(GTK_GRID(grid), GTK_WIDGET(pages), 0, 3, 1, 1);
+
   gtk_grid_attach(GTK_GRID(grid), GTK_WIDGET(title_entry), 1, 0, 2, 1);
   gtk_grid_attach(GTK_GRID(grid), GTK_WIDGET(author_entry), 1, 1, 2, 1);
-  gtk_grid_attach(GTK_GRID(grid), GTK_WIDGET(pages_entry), 1, 2, 2, 1);
+  gtk_grid_attach(GTK_GRID(grid), GTK_WIDGET(edition_entry), 1, 2, 2, 1);
+  gtk_grid_attach(GTK_GRID(grid), GTK_WIDGET(pages_entry), 1, 3, 2, 1);
 
   // create button widget(s)
   add_button = gtk_button_new_with_label("Add");
@@ -84,7 +203,7 @@ add_book(GtkButton *add_book_button,
 
   // connect buttons
   g_signal_connect(GTK_BUTTON(add_button), "clicked",
-                   G_CALLBACK(close_window), window);
+                   G_CALLBACK(confirm_book), widgets);
 
   // display window
   gtk_widget_show_all(window);
@@ -92,7 +211,7 @@ add_book(GtkButton *add_book_button,
 
 static void
 activate(GtkApplication *app,
-         gpointer        user_data)
+         gpointer        data)
 {
   // main widget(s)
   GtkWidget *window;
@@ -104,25 +223,41 @@ activate(GtkApplication *app,
 
   // stack widget(s)
   GtkWidget *stack;
-  GtkWidget *stack_books_grid;
-  GtkWidget *stack_logs_grid;
+  GtkWidget *stack_books_box;
+
+  GtkWidget *book_info_box;
+  GtkWidget *book_labels_box;
+  GtkWidget *book_entries_box;
+  GtkWidget *stack_logs_box;
 
   // books tab widget(s)
   GtkWidget *add_book_button;
   GtkWidget *book_title;
   GtkWidget *book_author;
-  GtkWidget *book_total_pages;
+  GtkWidget *book_edition;
+  GtkWidget *book_pages;
+
+  struct WidgetList *book_info_entry;
+
+  GtkWidget *book_title_entry;
+  GtkWidget *book_author_entry;
+  GtkWidget *book_edition_entry;
+  GtkWidget *book_pages_entry;
 
   // stack widget(s)
   stack = gtk_stack_new();
 
-  stack_books_grid = gtk_grid_new();
-  stack_logs_grid = gtk_grid_new();
+  stack_books_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+  stack_logs_box = gtk_grid_new();
 
-  gtk_stack_add_titled(GTK_STACK(stack), GTK_WIDGET(stack_books_grid), "books-name", "Books");
-  gtk_stack_add_titled(GTK_STACK(stack), GTK_WIDGET(stack_logs_grid), "logs-name", "Logs");
+  gtk_stack_add_titled(GTK_STACK(stack), GTK_WIDGET(stack_books_box), "books-name", "Books");
+  gtk_stack_add_titled(GTK_STACK(stack), GTK_WIDGET(stack_logs_box), "logs-name", "Logs");
 
-  // widget(s) to add to books grid
+  // widget(s) to add to books box
+  book_info_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+  book_labels_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+  book_entries_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+
   add_book_button = gtk_button_new_with_label("Add Book");
 
   book_title = gtk_label_new("Title:");
@@ -131,19 +266,52 @@ activate(GtkApplication *app,
   book_author = gtk_label_new("Author:");
   gtk_label_set_xalign(GTK_LABEL(book_author), 0);
 
-  book_total_pages = gtk_label_new("Total Pages:");
-  gtk_label_set_xalign(GTK_LABEL(book_total_pages), 0);
+  book_edition = gtk_label_new("Edition:");
+  gtk_label_set_xalign(GTK_LABEL(book_edition), 0);
 
-  // set grid properties
-  gtk_grid_set_row_spacing(GTK_GRID(stack_books_grid), 5);
-  gtk_grid_set_column_spacing(GTK_GRID(stack_books_grid), 5);
+  book_pages = gtk_label_new("Total Pages:");
+  gtk_label_set_xalign(GTK_LABEL(book_pages), 0);
 
-  // pack grid(s)
-  gtk_grid_attach(GTK_GRID(stack_books_grid), GTK_WIDGET(book_title), 0, 0, 1, 1);
-  gtk_grid_attach(GTK_GRID(stack_books_grid), GTK_WIDGET(book_author), 0, 2, 1, 1);
-  gtk_grid_attach(GTK_GRID(stack_books_grid), GTK_WIDGET(book_total_pages), 0, 3, 1, 1);
+  book_title_entry = gtk_entry_new();
+  gtk_editable_set_editable(GTK_EDITABLE(book_title_entry), FALSE);
 
-  gtk_grid_attach(GTK_GRID(stack_books_grid), GTK_WIDGET(add_book_button), 0, 4, 1, 1);
+  book_author_entry = gtk_entry_new();
+  gtk_editable_set_editable(GTK_EDITABLE(book_author_entry), FALSE);
+
+  book_edition_entry = gtk_entry_new();
+  gtk_editable_set_editable(GTK_EDITABLE(book_edition_entry), FALSE);
+
+  book_pages_entry = gtk_entry_new();
+  gtk_editable_set_editable(GTK_EDITABLE(book_pages_entry), FALSE);
+
+  book_info_entry = (struct WidgetList *) malloc(sizeof(struct WidgetList));
+  book_info_entry->next = (struct WidgetList *) malloc(sizeof(struct WidgetList));
+  book_info_entry->next->next = (struct WidgetList *) malloc(sizeof(struct WidgetList));
+  book_info_entry->next->next->next = (struct WidgetList *) malloc(sizeof(struct WidgetList));
+
+  book_info_entry->widget = book_title_entry;
+  book_info_entry->next->widget = book_author_entry;
+  book_info_entry->next->next->widget = book_edition_entry;
+  book_info_entry->next->next->next->widget = book_pages_entry;
+
+  // pack labels box
+  gtk_box_pack_start(GTK_BOX(book_labels_box), GTK_WIDGET(book_title), TRUE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(book_labels_box), GTK_WIDGET(book_author), TRUE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(book_labels_box), GTK_WIDGET(book_edition), TRUE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(book_labels_box), GTK_WIDGET(book_pages), TRUE, FALSE, 0);
+
+  // pack entries box
+  gtk_box_pack_start(GTK_BOX(book_entries_box), GTK_WIDGET(book_title_entry), TRUE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(book_entries_box), GTK_WIDGET(book_author_entry), TRUE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(book_entries_box), GTK_WIDGET(book_edition_entry), TRUE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(book_entries_box), GTK_WIDGET(book_pages_entry), TRUE, FALSE, 0);
+
+  // pack info box
+  gtk_box_pack_start(GTK_BOX(book_info_box), GTK_WIDGET(book_labels_box), FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(book_info_box), GTK_WIDGET(book_entries_box), TRUE, TRUE, 0);
+
+  gtk_box_pack_start(GTK_BOX(stack_books_box), GTK_WIDGET(book_info_box), FALSE, FALSE, 0);
+  gtk_box_pack_start(GTK_BOX(stack_books_box), GTK_WIDGET(add_book_button), FALSE, FALSE, 0);
 
   // stack switch widget(s)
   stack_switch = gtk_stack_switcher_new();
@@ -151,9 +319,6 @@ activate(GtkApplication *app,
 
   // create combo box(s)
   book_list = gtk_combo_box_text_new_with_entry();
-
-  // example book(s)
-  gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(book_list), NULL, "Basics of Web Design");
 
   // header widget(s)
   header = gtk_header_bar_new();
@@ -181,7 +346,9 @@ activate(GtkApplication *app,
 
   // connect widget(s) to function(s)
   g_signal_connect(GTK_BUTTON(add_book_button), "clicked",
-                   G_CALLBACK(add_book), NULL);
+                   G_CALLBACK(add_book), book_list);
+  g_signal_connect(GTK_COMBO_BOX_TEXT(book_list), "changed",
+                   G_CALLBACK(select_book), book_info_entry);
 
   // show widget(s)
   gtk_widget_show_all(window);
