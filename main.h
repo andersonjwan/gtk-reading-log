@@ -22,6 +22,9 @@ struct WidgetList {
 };
 
 /* forward declaration(s) */
-static void save_books(GtkButton *, gpointer);
+static void save_books(GtkWindow *, gpointer);
+static void read_books(gpointer);
+static int calc_string_size(char *, int);
+void parse_book(char *, gchar *, gchar *, gchar *, gchar *, gchar *, gchar *);
 
 #endif

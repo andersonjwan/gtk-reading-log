@@ -4,6 +4,7 @@
 #include "main.h"
 
 struct Book *start = NULL;
+bool loaded = false;
 
 struct Book *
 get_book(const gchar *book_name)
@@ -235,7 +236,6 @@ activate(GtkApplication *app,
 
   // books tab widget(s)
   GtkWidget *add_book_button;
-  GtkWidget *save_books_button;
   GtkWidget *book_title;
   GtkWidget *book_author;
   GtkWidget *book_edition;
@@ -263,7 +263,6 @@ activate(GtkApplication *app,
   book_entries_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
 
   add_book_button = gtk_button_new_with_label("Add Book");
-  save_books_button = gtk_button_new_with_label("Save Books");
 
   book_title = gtk_label_new("Title:");
   gtk_label_set_xalign(GTK_LABEL(book_title), 0);
@@ -317,7 +316,6 @@ activate(GtkApplication *app,
 
   gtk_box_pack_start(GTK_BOX(stack_books_box), GTK_WIDGET(book_info_box), FALSE, FALSE, 0);
   gtk_box_pack_start(GTK_BOX(stack_books_box), GTK_WIDGET(add_book_button), FALSE, FALSE, 0);
-  gtk_box_pack_end(GTK_BOX(stack_books_box), GTK_WIDGET(save_books_button), FALSE, FALSE, 0);
 
   // stack switch widget(s)
   stack_switch = gtk_stack_switcher_new();
@@ -356,10 +354,14 @@ activate(GtkApplication *app,
   // connect widget(s) to function(s)
   g_signal_connect(GTK_BUTTON(add_book_button), "clicked",
                    G_CALLBACK(add_book), book_list);
-  g_signal_connect(GTK_BUTTON(save_books_button), "clicked",
-                   G_CALLBACK(save_books), start);
   g_signal_connect(GTK_COMBO_BOX_TEXT(book_list), "changed",
                    G_CALLBACK(select_book), book_info_entry);
+
+  // end task(s)
+  g_signal_connect(GTK_WINDOW(window), "delete_event", G_CALLBACK(save_books), NULL);
+
+  // startup task(s)
+  read_books(GTK_COMBO_BOX_TEXT(book_list));
 
   // show widget(s)
   gtk_widget_show_all(window);
@@ -379,7 +381,7 @@ int main(int argc, char **argv)
 }
 
 static void
-save_books(GtkButton *save_button,
+save_books(GtkWindow *window,
            gpointer   data)
 {
   struct Book *curr_book = start;
@@ -398,22 +400,22 @@ save_books(GtkButton *save_button,
     while(curr_book != NULL) {
       // write book information
       fprintf(output_file, "%s", curr_book->title);
-      fprintf(output_file, " #\n"); // delimeter
+      fprintf(output_file, "#"); // delimeter
 
       fprintf(output_file, "%s", curr_book->author);
-      fprintf(output_file, " #\n");
+      fprintf(output_file, "#");
 
       fprintf(output_file, "%s", curr_book->edition);
-      fprintf(output_file, " #\n");
+      fprintf(output_file, "#");
 
       fprintf(output_file, "%s", curr_book->total_pages);
-      fprintf(output_file, " #\n");
+      fprintf(output_file, "#");
 
       fprintf(output_file, "%s", curr_book->start_page);
-      fprintf(output_file, " #\n");
+      fprintf(output_file, "#");
 
       fprintf(output_file, "%s", curr_book->end_page);
-      fprintf(output_file, " #\n");
+      fprintf(output_file, "#");
 
       // end of book information
       fprintf(output_file, "##\n");
@@ -425,4 +427,199 @@ save_books(GtkButton *save_button,
     // close file
     fclose(output_file);
   }
+}
+
+static void
+read_books(gpointer data) {
+
+  if(!loaded) {
+    loaded = true;
+
+    GtkComboBoxText *combo;
+    combo = GTK_COMBO_BOX_TEXT(data);
+
+    // create file
+    FILE *input_file;
+
+    // open file
+    if((input_file = fopen("book-list.txt", "r")) == NULL) {
+      fprintf(stderr, "Unable to open '%s'.\n", "book-list.txt");
+      exit(2);
+    }
+
+    // read data into buffer
+    char character, *buffer;
+    int i;
+
+    do {
+      // new buffer to allocate
+      buffer = (char *) malloc(sizeof(char) * 250);
+      i = 0;
+
+      do {
+        // read character
+        character = getc(input_file);
+
+        if(character == '\n') {
+          // append null character to buffer
+          *(buffer + i) = '\0';
+        }
+        else {
+          // append character to buffer
+          *(buffer + i) = character;
+        }
+
+        // test for line completed
+        if(*(buffer + i) == '\0') {
+          // create Book with information within line
+
+          struct Book *new_book = (struct Book *) malloc(sizeof(struct Book));
+
+          // allocate variable memory
+          new_book->title = (gchar *) malloc(sizeof(gchar) * calc_string_size(buffer, 1));
+          new_book->author = (gchar *) malloc(sizeof(gchar) * calc_string_size(buffer, 2));
+          new_book->edition = (gchar *) malloc(sizeof(gchar) * calc_string_size(buffer, 3));
+          new_book->total_pages = (gchar *) malloc(sizeof(gchar) * calc_string_size(buffer, 4));
+          new_book->start_page = (gchar *) malloc(sizeof(gchar) * calc_string_size(buffer, 5));
+          new_book->end_page = (gchar *) malloc(sizeof(gchar) * calc_string_size(buffer, 6));
+
+          new_book->next = NULL;
+
+          parse_book(buffer, new_book->title, new_book->author, new_book->edition,
+                     new_book->total_pages, new_book->start_page, new_book->end_page);
+
+          // append Book to List
+          if(start == NULL) {
+            start = new_book;
+          }
+          else {
+            struct Book *temp_book = start;
+
+            while(temp_book->next != NULL) {
+              temp_book = temp_book->next;
+            }
+
+            temp_book->next = new_book;
+          }
+
+          // append to combobox
+          gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo), NULL, new_book->title);
+        }
+
+        // move to next character
+        ++i;
+      }
+      while(character != '\n' && character != EOF);
+
+      // free current buffer
+      free(buffer);
+    }
+    while(character != EOF);
+
+    // close file
+    fclose(input_file);
+  }
+}
+
+static int
+calc_string_size(char *buffer, int hash)
+{
+  int size = 0;
+  int hash_count = 0;
+  char character;
+  int i = 0;
+
+  do {
+    character = *(buffer + i);
+
+    if(character == '#') {
+      ++hash_count;
+    }
+    else if(hash_count == (hash - 1)) {
+      ++size;
+    }
+
+    ++i;
+  }
+  while(hash_count < hash);
+
+  return size + 1;
+}
+
+void parse_book(char *buffer, gchar *title, gchar *author, gchar *edition,
+                gchar *total_pages, gchar *start, gchar *end)
+{
+  char character;
+  int i = 0, ii = 0, iii = 0, iv = 0, v = 0, vi = 0, vii = 0;
+  int delimeter_count = 0;
+
+  do {
+    character = *(buffer + i);
+
+    if(character == '#') {
+      ++delimeter_count;
+    }
+
+    switch(delimeter_count) {
+    case 0: {
+      // reading book title
+      if(character != '#') {
+        *(title + ii) = character;
+        ++ii;
+      }
+    }
+      break;
+    case 1: {
+      // reading book author
+      if(character != '#') {
+        *(author + iii) = character;
+        ++iii;
+      }
+    }
+      break;
+    case 2: {
+      // reading book edition
+      if(character != '#') {
+        *(edition + iv) = character;
+        ++iv;
+      }
+    }
+      break;
+    case 3: {
+      // reading book page count
+      if(character != '#') {
+        *(total_pages + v) = character;
+        ++v;
+      }
+    }
+      break;
+    case 4: {
+      // reading book start
+      if(character != '#') {
+        *(start + vi) = character;
+        ++vi;
+      }
+    }
+      break;
+    case 5: {
+      if(character != '#') {
+        *(end + vii) = character;
+        ++vii;
+      }
+    }
+      break;
+    }
+
+    // increment to next character in buffer
+    ++i;
+  }
+  while(character != '\0');
+
+  // append null character(s)
+  *(title + ii) = '\0';
+  *(author + iii) = '\0';
+  *(edition + iv) = '\0';
+  *(total_pages + v) = '\0';
+  *(start + vi) = '\0';
+  *(end + vii) = '\0';
 }

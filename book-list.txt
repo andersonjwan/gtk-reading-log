@@ -1,7 +1,4 @@
-Basics of Web Design: HTML5 & CSS #
-Terry Felke-Morris #
-5 #
-1433 #
-0 #
-0 #
-##
+Basics of Web Design: HTML5 & CSS#Terry Felke-Morris#5#1433#0#0###
+Introduction to the Theory of Computation#Michael Sipser#3#481#0#0###
+Programming in C#Stephen G. Kochan#4#1335#0#0###
+Cracking the Coding Interview#Lippman; Lajoie; Moo#6#708#0#0###
